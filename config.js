@@ -1,7 +1,7 @@
 // ===== 設定 =====
 // GASをウェブアプリとしてデプロイしたURLを貼り付けてください（README参照）
 // 空のままだと下の DEFAULT_CONTENT で表示され、応募はテストモード（送信されません）になります。
-const GAS_URL = "";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyKPUEa8siShjeXEZUX0Qfw8YNmmaqJEhkkH1SvFk5Tn5SflnoqWKyj3BaP_WvdaS7i_w/exec";
 
 // ===== 初期コンテンツ（管理サイトで一度保存すると、以後はGAS側の内容が優先されます）=====
 const DEFAULT_CONTENT = {
