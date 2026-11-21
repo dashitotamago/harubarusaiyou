@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>採用サイト 管理画面</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <div class="logo">採用サイト 管理</div>
+  <a href="index.html" target="_blank" class="tag">本サイトを見る ↗</a>
+</div></header>
+
+<!-- ===== ログイン ===== -->
+<main id="viewLogin"><div class="wrap">
+  <div class="card">
+    <h1 class="job-title" style="font-size:20px">ログイン</h1>
+    <div class="notice" id="noGas" hidden>GAS_URLが未設定です（config.js）。保存はできませんが、画面の確認はできます。</div>
+    <label class="f">管理パスワード</label>
+    <input type="password" id="pw" autocomplete="current-password">
+    <div class="error" id="loginErr"></div>
+    <button class="btn btn-primary btn-block" id="loginBtn" style="margin-top:16px">ログイン</button>
+  </div>
+</div></main>
+
+<!-- ===== 編集 ===== -->
+<main id="viewEdit" hidden><div class="wrap">
+  <div class="card">
+    <h2 style="margin-top:0">基本情報</h2>
+    <label class="f">店名</label><input type="text" data-k="storeName">
+    <label class="f">求人タイトル（職種）</label><input type="text" data-k="jobTitle">
+    <label class="f">キャッチコピー</label><textarea data-k="catchcopy" style="min-height:60px"></textarea>
+    <label class="f">雇用形態（タグ表示）</label><input type="text" data-k="employmentType">
+    <label class="f">給与（タグ表示）</label><input type="text" data-k="salaryShort">
+    <label class="f">勤務地（タグ表示）</label><input type="text" data-k="locationShort">
+    <label class="f">メイン画像URL（任意）</label><input type="text" data-k="heroImage" placeholder="https://...">
+    <p class="hint">GitHubに画像を置く場合は images/xxx.jpg のように書けます</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">求人詳細の項目</h2>
+    <p class="hint">給与・勤務地・仕事内容などを自由に追加・並べ替えできます</p>
+    <div id="secList"></div>
+    <button class="icon-btn" id="addSec">＋ 項目を追加</button>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">シフト希望の選択肢</h2>
+    <label class="f">曜日（カンマ区切り）</label><input type="text" id="shiftDays">
+    <label class="f">時間帯（カンマ区切り）</label><input type="text" id="shiftTimes">
+    <p class="hint">例）終日, 午前, 午後, 夜 ／ 10:00〜14:00, 14:00〜17:00</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">応募完了メッセージ</h2>
+    <textarea data-k="completeMessage"></textarea>
+  </div>
+
+  <div class="sticky-cta"><div class="wrap toolbar">
+    <button class="btn btn-ghost" id="logoutBtn">ログアウト</button>
+    <button class="btn btn-ghost" id="resetBtn">初期値に戻す</button>
+    <button class="btn btn-primary" id="saveBtn" style="flex:1">保存して公開</button>
+  </div></div>
+</div></main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="config.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let C = structuredClone(DEFAULT_CONTENT);
+let PW = sessionStorage.getItem("recruit_pw") || "";
+
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(t._t); t._t=setTimeout(()=>t.hidden=true,2500); }
+async function post(body){
+  const r = await fetch(GAS_URL, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body) });
+  return r.json();
+}
+
+if (!GAS_URL) $("noGas").hidden = false;
+
+$("loginBtn").onclick = async () => {
+  const pw = $("pw").value; $("loginErr").textContent = "";
+  if (!GAS_URL) { enter(); return; }
+  $("loginBtn").disabled = true;
+  try {
+    const j = await post({ action:"login", password: pw });
+    if (!j.ok) throw new Error(j.error || "パスワードが違います");
+    PW = pw; sessionStorage.setItem("recruit_pw", pw); await enter();
+  } catch(e){ $("loginErr").textContent = e.message; }
+  finally { $("loginBtn").disabled = false; }
+};
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("loginBtn").click(); });
+
+async function enter(){
+  if (GAS_URL) {
+    try {
+      const j = await (await fetch(GAS_URL + "?action=content")).json();
+      if (j.ok && j.content) C = Object.assign(structuredClone(DEFAULT_CONTENT), j.content);
+    } catch(e){ toast("読み込みに失敗しました"); }
+  }
+  fill();
+  $("viewLogin").hidden = true; $("viewEdit").hidden = false;
+}
+
+function fill(){
+  document.querySelectorAll("[data-k]").forEach(el => el.value = C[el.dataset.k] ?? "");
+  $("shiftDays").value = (C.shiftDays||[]).join(", ");
+  $("shiftTimes").value = (C.shiftTimes||[]).join(", ");
+  renderSecs();
+}
+
+function renderSecs(){
+  $("secList").innerHTML = C.sections.map((s,i) => `
+    <div class="admin-sec">
+      <div class="row">
+        <input type="text" value="${esc(s.title)}" data-i="${i}" data-f="title" placeholder="見出し（例：給与）">
+        <button class="icon-btn" data-act="up" data-i="${i}" title="上へ">↑</button>
+        <button class="icon-btn" data-act="down" data-i="${i}" title="下へ">↓</button>
+        <button class="icon-btn" data-act="del" data-i="${i}" title="削除">✕</button>
+      </div>
+      <textarea data-i="${i}" data-f="body" placeholder="本文">${esc(s.body)}</textarea>
+    </div>`).join("");
+}
+$("secList").addEventListener("input", e => {
+  const el = e.target; if (el.dataset.f) C.sections[el.dataset.i][el.dataset.f] = el.value;
+});
+$("secList").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const i = +b.dataset.i, a = C.sections;
+  if (b.dataset.act === "del" && confirm(`「${a[i].title || "無題"}」を削除しますか？`)) a.splice(i,1);
+  if (b.dataset.act === "up" && i > 0) [a[i-1],a[i]] = [a[i],a[i-1]];
+  if (b.dataset.act === "down" && i < a.length-1) [a[i+1],a[i]] = [a[i],a[i+1]];
+  renderSecs();
+});
+$("addSec").onclick = () => { C.sections.push({ title:"", body:"" }); renderSecs(); };
+
+function collect(){
+  document.querySelectorAll("[data-k]").forEach(el => C[el.dataset.k] = el.value.trim());
+  const split = v => v.split(/[,、，]/).map(s=>s.trim()).filter(Boolean);
+  C.shiftDays = split($("shiftDays").value);
+  C.shiftTimes = split($("shiftTimes").value);
+  C.sections = C.sections.filter(s => s.title.trim() || s.body.trim());
+  return C;
+}
+
+$("saveBtn").onclick = async () => {
+  const data = collect();
+  if (!GAS_URL) { toast("GAS_URL未設定のため保存できません"); return; }
+  $("saveBtn").disabled = true; $("saveBtn").textContent = "保存中…";
+  try {
+    const j = await post({ action:"save", password: PW, content: data });
+    if (!j.ok) throw new Error(j.error);
+    toast("保存しました。本サイトに反映されています"); renderSecs();
+  } catch(e){
+    toast("保存失敗：" + e.message);
+    if (/パスワード/.test(e.message)) logout();
+  } finally { $("saveBtn").disabled = false; $("saveBtn").textContent = "保存して公開"; }
+};
+$("resetBtn").onclick = () => {
+  if (confirm("初期値に戻しますか？（保存するまで公開はされません）")) { C = structuredClone(DEFAULT_CONTENT); fill(); }
+};
+function logout(){ sessionStorage.removeItem("recruit_pw"); PW=""; location.reload(); }
+$("logoutBtn").onclick = logout;
+
+// 再訪時の自動ログイン
+if (PW && GAS_URL) post({ action:"login", password: PW }).then(j => j.ok ? enter() : sessionStorage.removeItem("recruit_pw")).catch(()=>{});
+</script>
+</body>
+</html>

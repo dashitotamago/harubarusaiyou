@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>採用情報</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <div class="logo" id="hdStore">採用情報</div><div class="tag">RECRUIT</div>
+</div></header>
+
+<div id="loading" class="loading">読み込み中…</div>
+
+<!-- ===== 求人詳細 ===== -->
+<main id="viewJob" hidden>
+  <img id="heroImg" class="hero-img" alt="" hidden>
+  <div class="wrap">
+    <div class="card">
+      <h1 class="job-title" id="jobTitle"></h1>
+      <p class="store" id="storeName"></p>
+      <p class="catch" id="catchcopy"></p>
+      <div class="chips" id="chips"></div>
+      <button class="btn btn-primary btn-block" data-go="apply">この求人に応募する</button>
+    </div>
+    <div class="card" id="sections"></div>
+  </div>
+  <div class="sticky-cta"><div class="wrap">
+    <button class="btn btn-primary btn-block" data-go="apply">応募する</button>
+  </div></div>
+</main>
+
+<!-- ===== 応募フォーム ===== -->
+<main id="viewApply" hidden><div class="wrap">
+  <div class="card">
+    <div class="steps"><span class="on">① 入力</span>›<span>② 確認</span>›<span>③ 完了</span></div>
+    <h1 class="job-title" style="font-size:20px">応募フォーム</h1>
+    <p class="store" id="applyJob"></p>
+    <div class="notice" id="testNotice" hidden>テストモード：GAS_URL未設定のため、送信は行われません。</div>
+    <form id="applyForm" novalidate>
+      <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off">
+      <label class="f">お名前<span class="req">必須</span></label>
+      <input type="text" name="name" placeholder="例）常滑 太郎" autocomplete="name">
+      <label class="f">ふりがな</label>
+      <input type="text" name="kana" placeholder="例）とこなめ たろう">
+      <label class="f">生年月日<span class="req">必須</span></label>
+      <input type="date" name="birthday" autocomplete="bday">
+      <label class="f">メールアドレス<span class="req">必須</span></label>
+      <input type="email" name="email" placeholder="example@mail.com" autocomplete="email">
+      <label class="f">シフト希望<span class="req">必須</span></label>
+      <table class="shift-table" id="shiftTable"></table>
+      <p class="hint">入れる曜日の時間帯を選んでください（1つ以上）</p>
+      <label class="f">希望日数</label>
+      <select name="daysPerWeek">
+        <option value="">選択してください</option>
+        <option>週1日</option><option>週2日</option><option>週3日</option>
+        <option>週4日</option><option>週5日以上</option><option>相談したい</option>
+      </select>
+      <label class="f">備考・ご質問</label>
+      <textarea name="note" placeholder="例）テスト期間は休みたい、〇月から勤務可能 など"></textarea>
+      <div class="error" id="formError"></div>
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button type="button" class="btn btn-ghost" data-go="job">戻る</button>
+        <button type="submit" class="btn btn-primary" style="flex:1">確認画面へ</button>
+      </div>
+    </form>
+  </div>
+</div></main>
+
+<!-- ===== 確認 ===== -->
+<main id="viewConfirm" hidden><div class="wrap">
+  <div class="card">
+    <div class="steps"><span>① 入力</span>›<span class="on">② 確認</span>›<span>③ 完了</span></div>
+    <h1 class="job-title" style="font-size:20px">入力内容の確認</h1>
+    <dl class="confirm" id="confirmList"></dl>
+    <div class="error" id="sendError"></div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button type="button" class="btn btn-ghost" data-go="apply">修正する</button>
+      <button type="button" class="btn btn-primary" id="sendBtn" style="flex:1">この内容で応募する</button>
+    </div>
+  </div>
+</div></main>
+
+<!-- ===== 完了 ===== -->
+<main id="viewDone" hidden><div class="wrap">
+  <div class="card done">
+    <div class="steps" style="justify-content:center"><span>① 入力</span>›<span>② 確認</span>›<span class="on">③ 完了</span></div>
+    <div class="mark">✓</div>
+    <h1 class="job-title">応募完了</h1>
+    <p class="pre" id="completeMsg"></p>
+    <p style="margin-top:20px"><button class="btn btn-ghost" data-go="job">求人ページへ戻る</button></p>
+  </div>
+</div></main>
+
+<footer id="footer"></footer>
+
+<script src="config.js"></script>
+<script>
+let C = DEFAULT_CONTENT;
+let formData = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const views = { job:"viewJob", apply:"viewApply", confirm:"viewConfirm", done:"viewDone" };
+function go(v){
+  Object.values(views).forEach(id => $(id).hidden = true);
+  $(views[v]).hidden = false;
+  window.scrollTo(0,0);
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go);
+});
+
+async function load(){
+  if (GAS_URL) {
+    try {
+      const r = await fetch(GAS_URL + "?action=content");
+      const j = await r.json();
+      if (j.ok && j.content) C = Object.assign({}, DEFAULT_CONTENT, j.content);
+    } catch(e){ console.warn("GAS読込失敗。初期コンテンツで表示します", e); }
+  } else {
+    $("testNotice").hidden = false;
+  }
+  render();
+  $("loading").hidden = true;
+  go("job");
+}
+
+function render(){
+  document.title = `${C.jobTitle}｜${C.storeName} 採用情報`;
+  $("hdStore").textContent = C.storeName;
+  $("jobTitle").textContent = C.jobTitle;
+  $("storeName").textContent = C.storeName;
+  $("catchcopy").textContent = C.catchcopy;
+  $("applyJob").textContent = `${C.storeName}｜${C.jobTitle}`;
+  $("chips").innerHTML = [C.employmentType, C.salaryShort, C.locationShort]
+    .filter(Boolean).map(t => `<span class="chip">${esc(t)}</span>`).join("");
+  if (C.heroImage) { $("heroImg").src = C.heroImage; $("heroImg").hidden = false; }
+  $("sections").innerHTML = (C.sections||[]).filter(s=>s.title||s.body).map(s =>
+    `<section class="sec"><h2>${esc(s.title)}</h2><p class="pre">${esc(s.body)}</p></section>`).join("");
+  $("completeMsg").textContent = C.completeMessage;
+  $("footer").textContent = `© ${new Date().getFullYear()} ${C.storeName}`;
+
+  const opts = `<option value="">×</option>` + (C.shiftTimes||[]).map(t=>`<option>${esc(t)}</option>`).join("");
+  $("shiftTable").innerHTML = (C.shiftDays||[]).map((d,i) =>
+    `<tr><td>${esc(d)}</td><td><select data-day="${esc(d)}">${opts}</select></td></tr>`).join("");
+}
+
+$("applyForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const f = e.target.elements, err = [];
+  const shifts = [...document.querySelectorAll("#shiftTable select")]
+    .filter(s => s.value).map(s => `${s.dataset.day}：${s.value}`);
+  const d = {
+    name: f.name.value.trim(), kana: f.kana.value.trim(), birthday: f.birthday.value,
+    email: f.email.value.trim(), shifts, daysPerWeek: f.daysPerWeek.value,
+    note: f.note.value.trim(), website: f.website.value
+  };
+  if (!d.name) err.push("お名前を入力してください");
+  if (!d.birthday) err.push("生年月日を入力してください");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) err.push("メールアドレスを正しく入力してください");
+  if (!shifts.length) err.push("シフト希望を1つ以上選んでください");
+  $("formError").innerHTML = err.map(esc).join("<br>");
+  if (err.length) return;
+
+  formData = d;
+  const rows = [
+    ["お名前", d.name + (d.kana ? `（${d.kana}）` : "")],
+    ["生年月日", d.birthday.replace(/-/g,"/") + `（${age(d.birthday)}歳）`],
+    ["メールアドレス", d.email],
+    ["シフト希望", shifts.join("\n")],
+    ["希望日数", d.daysPerWeek || "未選択"],
+    ["備考", d.note || "なし"]
+  ];
+  $("confirmList").innerHTML = rows.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+  $("sendError").textContent = "";
+  go("confirm");
+});
+
+function age(b){
+  const t = new Date(), d = new Date(b);
+  let a = t.getFullYear() - d.getFullYear();
+  if (t < new Date(t.getFullYear(), d.getMonth(), d.getDate())) a--;
+  return a;
+}
+
+$("sendBtn").addEventListener("click", async () => {
+  const btn = $("sendBtn");
+  btn.disabled = true; btn.textContent = "送信中…";
+  try {
+    if (GAS_URL) {
+      const r = await fetch(GAS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "apply", jobTitle: C.jobTitle, storeName: C.storeName, ...formData })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "送信に失敗しました");
+    } else {
+      await new Promise(r => setTimeout(r, 600)); // テストモード
+    }
+    $("applyForm").reset();
+    go("done");
+  } catch(e) {
+    $("sendError").textContent = "送信できませんでした。時間をおいて再度お試しください。（" + e.message + "）";
+  } finally {
+    btn.disabled = false; btn.textContent = "この内容で応募する";
+  }
+});
+
+load();
+</script>
+</body>
+</html>
