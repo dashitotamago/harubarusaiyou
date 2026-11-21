@@ -35,8 +35,13 @@
     <label class="f">雇用形態（タグ表示）</label><input type="text" data-k="employmentType">
     <label class="f">給与（タグ表示）</label><input type="text" data-k="salaryShort">
     <label class="f">勤務地（タグ表示）</label><input type="text" data-k="locationShort">
-    <label class="f">メイン画像URL（任意）</label><input type="text" data-k="heroImage" placeholder="https://...">
-    <p class="hint">GitHubに画像を置く場合は images/xxx.jpg のように書けます</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">写真（最大4枚）</h2>
+    <p class="hint">スマホのアルバムから選べます。1枚目がトップに大きく表示されます。</p>
+    <div class="img-grid" id="imgGrid"></div>
+    <input type="file" id="imgInput" accept="image/*" multiple hidden>
   </div>
 
   <div class="card">
@@ -102,6 +107,66 @@ async function enter(){
 function fill(){
   document.querySelectorAll("[data-k]").forEach(el => el.value = C[el.dataset.k] ?? "");
   renderSecs();
+  renderImgs();
+}
+
+// ===== 画像 =====
+const MAX_IMG = 4;
+let uploading = 0;
+function renderImgs(){
+  C.images = C.images || [];
+  let h = C.images.map((u,i) => `
+    <div class="img-item">
+      <img src="${esc(u)}" alt="">
+      ${i === 0 ? '<span class="badge">トップ</span>' : ''}
+      <div class="ops">
+        ${i > 0 ? `<button data-img="left" data-i="${i}" title="前へ">←</button>` : ''}
+        <button data-img="del" data-i="${i}" title="削除">✕</button>
+      </div>
+    </div>`).join("");
+  for (let k = 0; k < uploading; k++) h += `<div class="img-add">アップロード中…</div>`;
+  if (C.images.length + uploading < MAX_IMG) h += `<label class="img-add" for="imgInput"><b>＋</b>写真を追加</label>`;
+  $("imgGrid").innerHTML = h;
+}
+$("imgGrid").addEventListener("click", e => {
+  const b = e.target.closest("[data-img]"); if (!b) return;
+  const i = +b.dataset.i, a = C.images;
+  if (b.dataset.img === "del" && confirm("この写真を外しますか？")) a.splice(i,1);
+  if (b.dataset.img === "left") [a[i-1],a[i]] = [a[i],a[i-1]];
+  renderImgs();
+});
+$("imgInput").addEventListener("change", async e => {
+  const files = [...e.target.files].slice(0, MAX_IMG - C.images.length - uploading);
+  e.target.value = "";
+  if (!files.length) return;
+  if (!GAS_URL) { toast("GAS_URL未設定のためアップロードできません"); return; }
+  uploading += files.length; renderImgs();
+  for (const file of files) {
+    try {
+      const data = await resizeImage(file, 1600, 0.82);
+      const j = await post({ action:"uploadImage", password: PW, data, name: file.name });
+      if (!j.ok) throw new Error(j.error);
+      C.images.push(j.url);
+    } catch(err) { toast("アップロード失敗：" + err.message); }
+    uploading--; renderImgs();
+  }
+  toast("「保存して公開」を押すと本サイトに反映されます");
+});
+// スマホ写真を長辺1600pxのJPEGに縮小してから送信（通信量と表示速度対策）
+function resizeImage(file, max, q){
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", q).split(",")[1]);
+    };
+    img.onerror = () => rej(new Error("画像を読み込めませんでした"));
+    img.src = url;
+  });
 }
 
 function renderSecs(){
@@ -136,6 +201,7 @@ function collect(){
 }
 
 $("saveBtn").onclick = async () => {
+  if (uploading) { toast("アップロード完了までお待ちください"); return; }
   const data = collect();
   if (!GAS_URL) { toast("GAS_URL未設定のため保存できません"); return; }
   $("saveBtn").disabled = true; $("saveBtn").textContent = "保存中…";
