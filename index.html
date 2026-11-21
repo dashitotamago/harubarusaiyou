@@ -49,8 +49,7 @@
       <label class="f">メールアドレス<span class="req">必須</span></label>
       <input type="email" name="email" placeholder="example@mail.com" autocomplete="email">
       <label class="f">シフト希望<span class="req">必須</span></label>
-      <table class="shift-table" id="shiftTable"></table>
-      <p class="hint">入れる曜日の時間帯を選んでください（1つ以上）</p>
+      <textarea name="shift" placeholder="例）平日の午前中、土日はどちらも終日OK など"></textarea>
       <label class="f">希望日数</label>
       <select name="daysPerWeek">
         <option value="">選択してください</option>
@@ -141,17 +140,13 @@ function render(){
     `<section class="sec"><h2>${esc(s.title)}</h2><p class="pre">${esc(s.body)}</p></section>`).join("");
   $("completeMsg").textContent = C.completeMessage;
   $("footer").textContent = `© ${new Date().getFullYear()} ${C.storeName}`;
-
-  const opts = `<option value="">×</option>` + (C.shiftTimes||[]).map(t=>`<option>${esc(t)}</option>`).join("");
-  $("shiftTable").innerHTML = (C.shiftDays||[]).map((d,i) =>
-    `<tr><td>${esc(d)}</td><td><select data-day="${esc(d)}">${opts}</select></td></tr>`).join("");
 }
 
 $("applyForm").addEventListener("submit", e => {
   e.preventDefault();
   const f = e.target.elements, err = [];
-  const shifts = [...document.querySelectorAll("#shiftTable select")]
-    .filter(s => s.value).map(s => `${s.dataset.day}：${s.value}`);
+  const shiftText = f.shift.value.trim();
+  const shifts = shiftText ? [shiftText] : [];
   const d = {
     name: f.name.value.trim(), kana: f.kana.value.trim(), birthday: f.birthday.value,
     email: f.email.value.trim(), shifts, daysPerWeek: f.daysPerWeek.value,
@@ -160,7 +155,7 @@ $("applyForm").addEventListener("submit", e => {
   if (!d.name) err.push("お名前を入力してください");
   if (!d.birthday) err.push("生年月日を入力してください");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) err.push("メールアドレスを正しく入力してください");
-  if (!shifts.length) err.push("シフト希望を1つ以上選んでください");
+  if (!shifts.length) err.push("シフト希望を入力してください");
   $("formError").innerHTML = err.map(esc).join("<br>");
   if (err.length) return;
 
