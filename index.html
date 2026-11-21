@@ -15,7 +15,7 @@
 
 <!-- ===== 求人詳細 ===== -->
 <main id="viewJob" hidden>
-  <img id="heroImg" class="hero-img" alt="" hidden>
+  <div class="gallery" id="gallery" hidden><div class="track" id="galTrack"></div><div class="dots" id="galDots"></div></div>
   <div class="wrap">
     <div class="card">
       <h1 class="job-title" id="jobTitle"></h1>
@@ -135,7 +135,16 @@ function render(){
   $("applyJob").textContent = `${C.storeName}｜${C.jobTitle}`;
   $("chips").innerHTML = [C.employmentType, C.salaryShort, C.locationShort]
     .filter(Boolean).map(t => `<span class="chip">${esc(t)}</span>`).join("");
-  if (C.heroImage) { $("heroImg").src = C.heroImage; $("heroImg").hidden = false; }
+  const imgs = (C.images && C.images.length ? C.images : (C.heroImage ? [C.heroImage] : [])).slice(0, 4);
+  if (imgs.length) {
+    $("galTrack").innerHTML = imgs.map((u,i) => `<img src="${esc(u)}" alt="店舗写真${i+1}" loading="${i?'lazy':'eager'}">`).join("");
+    $("galDots").innerHTML = imgs.length > 1 ? imgs.map((_,i) => `<span class="${i?'':'on'}"></span>`).join("") : "";
+    $("galTrack").onscroll = () => {
+      const t = $("galTrack"), i = Math.round(t.scrollLeft / t.clientWidth);
+      [...$("galDots").children].forEach((d,j) => d.classList.toggle("on", i === j));
+    };
+    $("gallery").hidden = false;
+  }
   $("sections").innerHTML = (C.sections||[]).filter(s=>s.title||s.body).map(s =>
     `<section class="sec"><h2>${esc(s.title)}</h2><p class="pre">${esc(s.body)}</p></section>`).join("");
   $("completeMsg").textContent = C.completeMessage;
