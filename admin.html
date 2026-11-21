@@ -47,13 +47,6 @@
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">シフト希望の選択肢</h2>
-    <label class="f">曜日（カンマ区切り）</label><input type="text" id="shiftDays">
-    <label class="f">時間帯（カンマ区切り）</label><input type="text" id="shiftTimes">
-    <p class="hint">例）終日, 午前, 午後, 夜 ／ 10:00〜14:00, 14:00〜17:00</p>
-  </div>
-
-  <div class="card">
     <h2 style="margin-top:0">応募完了メッセージ</h2>
     <textarea data-k="completeMessage"></textarea>
   </div>
@@ -108,8 +101,6 @@ async function enter(){
 
 function fill(){
   document.querySelectorAll("[data-k]").forEach(el => el.value = C[el.dataset.k] ?? "");
-  $("shiftDays").value = (C.shiftDays||[]).join(", ");
-  $("shiftTimes").value = (C.shiftTimes||[]).join(", ");
   renderSecs();
 }
 
@@ -140,9 +131,6 @@ $("addSec").onclick = () => { C.sections.push({ title:"", body:"" }); renderSecs
 
 function collect(){
   document.querySelectorAll("[data-k]").forEach(el => C[el.dataset.k] = el.value.trim());
-  const split = v => v.split(/[,、，]/).map(s=>s.trim()).filter(Boolean);
-  C.shiftDays = split($("shiftDays").value);
-  C.shiftTimes = split($("shiftTimes").value);
   C.sections = C.sections.filter(s => s.title.trim() || s.body.trim());
   return C;
 }
