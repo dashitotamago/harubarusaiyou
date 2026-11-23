@@ -4,7 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>採用情報</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
+<style>/* 写真スライダー（style.cssに依存せず必ず効くようにここに記述） */
+.gallery{position:relative;overflow:hidden;background:#e9e2d8;max-width:760px;margin:0 auto}
+.gallery .track{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.gallery .track::-webkit-scrollbar{display:none}
+.gallery .slide{position:relative;flex:0 0 100%;min-width:100%;height:clamp(240px,75vw,460px);overflow:hidden;scroll-snap-align:center;scroll-snap-stop:always}
+/* 余白部分は同じ写真をぼかして敷く */
+.gallery .slide::before{content:"";position:absolute;inset:-20px;background:var(--bg) center/cover no-repeat;filter:blur(18px) brightness(.85)}
+/* 写真は切らずに全体を表示 */
+.gallery .slide img{position:relative;width:100%;height:100%;max-width:100%;object-fit:contain!important;display:block;pointer-events:none;user-select:none}
+.gallery .dots{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:6px}
+.gallery .dots span{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.55);cursor:pointer}
+.gallery .dots span.on{background:#fff}
+.gallery .nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border:none;border-radius:50%;
+  background:rgba(0,0,0,.35);color:#fff;font-size:20px;line-height:36px;cursor:pointer;padding:0}
+.gallery .nav.prev{left:8px}.gallery .nav.next{right:8px}
+</style>
 </head>
 <body>
 <header class="site"><div class="wrap">
@@ -15,7 +32,12 @@
 
 <!-- ===== 求人詳細 ===== -->
 <main id="viewJob" hidden>
-  <div class="gallery" id="gallery" hidden><div class="track" id="galTrack"></div><div class="dots" id="galDots"></div></div>
+  <div class="gallery" id="gallery" hidden>
+    <div class="track" id="galTrack"></div>
+    <button class="nav prev" id="galPrev" aria-label="前の写真" hidden>‹</button>
+    <button class="nav next" id="galNext" aria-label="次の写真" hidden>›</button>
+    <div class="dots" id="galDots"></div>
+  </div>
   <div class="wrap">
     <div class="card">
       <h1 class="job-title" id="jobTitle"></h1>
@@ -137,18 +159,36 @@ function render(){
     .filter(Boolean).map(t => `<span class="chip">${esc(t)}</span>`).join("");
   const imgs = (C.images && C.images.length ? C.images : (C.heroImage ? [C.heroImage] : [])).slice(0, 4);
   if (imgs.length) {
-    $("galTrack").innerHTML = imgs.map((u,i) => `<img src="${esc(u)}" alt="店舗写真${i+1}" loading="${i?'lazy':'eager'}">`).join("");
-    $("galDots").innerHTML = imgs.length > 1 ? imgs.map((_,i) => `<span class="${i?'':'on'}"></span>`).join("") : "";
-    $("galTrack").onscroll = () => {
-      const t = $("galTrack"), i = Math.round(t.scrollLeft / t.clientWidth);
-      [...$("galDots").children].forEach((d,j) => d.classList.toggle("on", i === j));
-    };
+    $("galTrack").innerHTML = imgs.map((u,i) => `<div class="slide" style="--bg:url('${esc(u)}')"><img src="${esc(u)}" alt="店舗写真${i+1}" loading="${i?'lazy':'eager'}"></div>`).join("");
+    $("galDots").innerHTML = imgs.length > 1 ? imgs.map((_,i) => `<span data-i="${i}" class="${i?'':'on'}"></span>`).join("") : "";
     $("gallery").hidden = false;
+    if (imgs.length > 1) setupSlider(imgs.length);
   }
   $("sections").innerHTML = (C.sections||[]).filter(s=>s.title||s.body).map(s =>
     `<section class="sec"><h2>${esc(s.title)}</h2><p class="pre">${esc(s.body)}</p></section>`).join("");
   $("completeMsg").textContent = C.completeMessage;
   $("footer").textContent = `© ${new Date().getFullYear()} ${C.storeName}`;
+}
+
+// ===== 写真スライダー（スワイプ・矢印・ドット・自動送り）=====
+function setupSlider(n){
+  const t = $("galTrack");
+  let cur = 0, timer = null;
+  const show = i => { cur = (i + n) % n; t.scrollTo({ left: cur * t.clientWidth, behavior: "smooth" }); };
+  const auto = () => { clearInterval(timer); timer = setInterval(() => show(cur + 1), 4000); };
+  t.addEventListener("scroll", () => {
+    const i = Math.round(t.scrollLeft / t.clientWidth);
+    if (i !== cur) cur = i;
+    [...$("galDots").children].forEach((d,j) => d.classList.toggle("on", j === cur));
+  }, { passive: true });
+  $("galPrev").hidden = $("galNext").hidden = false;
+  $("galPrev").onclick = () => { show(cur - 1); auto(); };
+  $("galNext").onclick = () => { show(cur + 1); auto(); };
+  $("galDots").onclick = e => { const d = e.target.closest("[data-i]"); if (d) { show(+d.dataset.i); auto(); } };
+  t.addEventListener("touchstart", () => clearInterval(timer), { passive: true });
+  t.addEventListener("touchend", auto, { passive: true });
+  window.addEventListener("resize", () => t.scrollTo({ left: cur * t.clientWidth }));
+  auto();
 }
 
 $("applyForm").addEventListener("submit", e => {
