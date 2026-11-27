@@ -125,6 +125,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 
 const views = { job:"viewJob", apply:"viewApply", confirm:"viewConfirm", done:"viewDone" };
 function go(v){
+  if (v === "apply" && !$("viewJob").hidden) track("form");
   Object.values(views).forEach(id => $(id).hidden = true);
   $(views[v]).hidden = false;
   window.scrollTo(0,0);
@@ -132,6 +133,31 @@ function go(v){
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go);
 });
+
+// ===== アクセス計測 =====
+// 流入元：URL末尾の ?src=qr などで判別（QRコードには ?src=qr を付けています）
+const SRC = (() => {
+  const p = new URLSearchParams(location.search).get("src");
+  if (p) { try { sessionStorage.setItem("recruit_src", p); } catch(e){} return p.slice(0, 20); }
+  try { const s = sessionStorage.getItem("recruit_src"); if (s) return s; } catch(e){}
+  const r = document.referrer;
+  if (!r) return "direct";
+  if (/indeed/i.test(r)) return "indeed";
+  if (/instagram/i.test(r)) return "instagram";
+  if (/google\./i.test(r)) return "google";
+  if (/line\./i.test(r)) return "line";
+  return "other";
+})();
+function isAdmin(){ try { return localStorage.getItem("recruit_admin") === "1"; } catch(e){ return false; } }
+function track(type){
+  if (!GAS_URL || isAdmin()) return;          // 管理者の閲覧は数えない
+  const key = "recruit_t_" + type;
+  try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch(e){} // 同じ人の再読込は1回扱い
+  let isNew = false;
+  if (type === "view") { try { isNew = !localStorage.getItem("recruit_seen"); localStorage.setItem("recruit_seen", "1"); } catch(e){} }
+  fetch(GAS_URL, { method: "POST", keepalive: true, headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "track", type, src: SRC, isNew }) }).catch(() => {});
+}
 
 async function load(){
   if (GAS_URL) {
@@ -146,6 +172,7 @@ async function load(){
   render();
   $("loading").hidden = true;
   go("job");
+  track("view");
 }
 
 function render(){
@@ -237,7 +264,7 @@ $("sendBtn").addEventListener("click", async () => {
       const r = await fetch(GAS_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "apply", jobTitle: C.jobTitle, storeName: C.storeName, ...formData })
+        body: JSON.stringify({ action: "apply", jobTitle: C.jobTitle, storeName: C.storeName, src: SRC, ...formData })
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "送信に失敗しました");
