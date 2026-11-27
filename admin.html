@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>採用サイト 管理画面</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <header class="site"><div class="wrap">
@@ -27,6 +27,14 @@
 
 <!-- ===== 編集 ===== -->
 <main id="viewEdit" hidden><div class="wrap">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0">アクセス状況</h2>
+      <button class="icon-btn" id="statsReload">更新</button>
+    </div>
+    <div id="stats"><p class="hint">読み込み中…</p></div>
+  </div>
+
   <div class="card">
     <h2 style="margin-top:0">基本情報</h2>
     <label class="f">店名</label><input type="text" data-k="storeName">
@@ -102,6 +110,8 @@ async function enter(){
   }
   fill();
   $("viewLogin").hidden = true; $("viewEdit").hidden = false;
+  try { localStorage.setItem("recruit_admin", "1"); } catch(e){} // この端末からの閲覧は数えない
+  loadStats();
 }
 
 function fill(){
@@ -168,6 +178,41 @@ function resizeImage(file, max, q){
     img.src = url;
   });
 }
+
+// ===== アクセス状況 =====
+const SRC_LABEL = { qr:"QRコード", indeed:"Indeed", instagram:"Instagram", google:"Google検索", line:"LINE", direct:"直接・不明", other:"その他" };
+async function loadStats(){
+  if (!GAS_URL) { $("stats").innerHTML = '<p class="hint">GAS_URL未設定</p>'; return; }
+  $("stats").innerHTML = '<p class="hint">読み込み中…</p>';
+  try {
+    const j = await post({ action:"stats", password: PW });
+    if (!j.ok) throw new Error(j.error);
+    const s = j.stats, rate = (a,v) => v ? (a / v * 100).toFixed(1) + "%" : "-";
+    const box = (label, o) => `
+      <div style="flex:1;min-width:30%;background:#f8f4ee;border-radius:10px;padding:10px;text-align:center">
+        <div class="hint" style="margin:0">${label}</div>
+        <div style="font-size:24px;font-weight:700">${o.view}</div>
+        <div class="hint" style="margin:0">応募 ${o.apply}件</div>
+      </div>`;
+    const srcRows = Object.entries(s.bySource).sort((a,b) => b[1].view - a[1].view).map(([k,o]) =>
+      `<tr><td>${esc(SRC_LABEL[k] || k)}</td><td>${o.view}</td><td>${o.form}</td><td>${o.apply}</td></tr>`).join("");
+    const dayRows = s.daily.map(d =>
+      `<tr><td>${esc(d.date.slice(5))}</td><td>${d.view}</td><td>${d.form}</td><td>${d.apply}</td></tr>`).join("");
+    const th = `<tr style="color:var(--sub);font-size:12px"><td></td><td>閲覧</td><td>フォーム</td><td>応募</td></tr>`;
+    $("stats").innerHTML = `
+      <div style="display:flex;gap:8px;margin-top:12px">${box("今日", s.today)}${box("今月", s.month)}${box("累計", s.total)}</div>
+      <p style="margin:12px 0 0;font-size:14px">
+        累計：新しい人 <b>${s.total.new}</b>人 ／ 応募フォームを開いた <b>${s.total.form}</b>回 ／
+        応募率 <b>${rate(s.total.apply, s.total.view)}</b>
+      </p>
+      <h3 style="font-size:15px;margin:16px 0 4px">流入元別（累計）</h3>
+      <table class="shift-table">${th}${srcRows || '<tr><td colspan="4" class="hint">まだデータがありません</td></tr>'}</table>
+      <h3 style="font-size:15px;margin:16px 0 4px">直近14日</h3>
+      <table class="shift-table">${th}${dayRows}</table>
+      <p class="hint">※同じ人が続けて開き直した分は1回として数えます。この端末（管理者）の閲覧は数えません。</p>`;
+  } catch(e) { $("stats").innerHTML = `<p class="error">読み込み失敗：${esc(e.message)}<br>GASを最新版に更新・再デプロイしたか確認してください</p>`; }
+}
+$("statsReload").onclick = loadStats;
 
 function renderSecs(){
   $("secList").innerHTML = C.sections.map((s,i) => `
